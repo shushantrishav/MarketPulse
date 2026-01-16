@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # MarketPulse Go API
+  marketpulse:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=0
+      - UPSTREAM_URL=http://mock-api:8000/query
+      - JWT_SECRET=${JWT_SECRET:-super-secret-dev-key-change-me}
+      - HTTP_PORT=:8080
+      - MAX_SYMBOLS_MEMORY=1000
+      - LOG_LEVEL=info
+    volumes:
+      - ./web/static:/app/web/static:ro  # Static dashboard
+    depends_on:
+      redis:
+        condition: service_healthy
+      mock-api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Redis for RSI state persistence
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # Mock market data API (AlphaVantage-style)
+  mock-api:
+    build:
+      context: ./mock-api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - LOG_LEVEL=info
+    volumes:
+      - ./mock-api/data:/app/data:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/query?function=TEST"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  default:
+    name: marketpulse
