@@ -48,7 +48,7 @@ func (s *IntradayService) GetIntraday(ctx context.Context, req entity.IntradayRe
 
     var candles []entity.Candle
     seededCandles := 0
-    changePct := 0.0  // FIXED: declare here
+    changePct := 0.0
 
     // SEEDING: If uninitialized (Count == 0), fetch full history & warm up
     if state.Count == 0 {
@@ -113,7 +113,7 @@ func (s *IntradayService) GetIntraday(ctx context.Context, req entity.IntradayRe
         Symbol:       req.Symbol,
         Candles:      candles,
         RSI:          state.RSI,
-        ChangePct:    changePct,  // FIXED: now defined
+        ChangePct:    changePct,
         Alert:        alert,
         IsValidRSI:   state.IsValid(),
         WarmupStatus: string(state.WarmupStatus()),

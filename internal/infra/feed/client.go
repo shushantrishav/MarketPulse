@@ -143,7 +143,6 @@ func (f *Client) FetchIntraday(ctx context.Context, symbol string, since time.Ti
 
 	out := make([]Candle, 0, len(tsMap))
 	for tsStr, c := range tsMap {
-		// Your timestamps are like: "2026-01-15 08:46:23" and timezone is UTC
 		ts, err := time.ParseInLocation("2006-01-02 15:04:05", tsStr, time.UTC)
 		if err != nil {
 			continue
@@ -172,7 +171,7 @@ func (f *Client) FetchIntraday(ctx context.Context, symbol string, since time.Ti
 		})
 	}
 
-	// Newest first (matches your API output ordering expectation)
+	// Newest first (matches API output ordering expectation)
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].Timestamp.After(out[j].Timestamp)
 	})

@@ -59,7 +59,7 @@ func (h *MarketHandler) Intraday(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optional tail trimming at API layer (if you want it here too)
+	// Optional tail trimming at API layer
 	if req.Tail != nil && *req.Tail > 0 && len(resp.Candles) > *req.Tail {
 		resp.Candles = resp.Candles[:*req.Tail]
 	}
