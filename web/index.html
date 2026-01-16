@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarketPulse | Production Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js and dependencies for Candlestick -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon@3.0.1/build/global/luxon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.2.0/dist/chartjs-adapter-luxon.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; -webkit-font-smoothing: antialiased; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+        .font-mono-custom { font-family: 'JetBrains Mono', monospace; }
+        .rsi-indicator { transition: stroke-dashoffset 0.8s ease, stroke 0.5s ease; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        #login, #app { transition: opacity 0.3s ease; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <!-- Login View -->
+    <div id="login" class="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/90 backdrop-blur-xl">
+        <div class="glass p-10 rounded-3xl w-full max-w-md border border-blue-500/20 shadow-2xl">
+            <div class="text-center mb-8">
+                <h2 class="text-3xl font-black bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">Terminal Login</h2>
+                <p class="text-slate-500 text-[10px] mt-2 uppercase tracking-widest font-bold">Authorized Personnel Only</p>
+            </div>
+            <form id="login-form" class="space-y-5">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-2">Username</label>
+                    <input id="username" type="text" value="demo" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 transition-all">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-500 uppercase mb-2">Password</label>
+                    <input id="password" type="password" value="secret" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500/50 transition-all">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-blue-900/40">
+                    Initialize Session
+                </button>
+                <p id="status" class="text-rose-500 text-[10px] text-center font-bold uppercase mt-4"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Main Terminal App -->
+    <div id="app" class="max-w-7xl mx-auto hidden">
+        <header class="flex flex-col lg:flex-row justify-between items-center mb-10 gap-6">
+            <div>
+                <h1 class="text-4xl font-extrabold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">MarketPulse Pro</h1>
+                <p class="text-slate-500 text-xs font-mono-custom uppercase mt-1">Status: <span id="apiStatus" class="text-emerald-400">Connected</span></p>
+            </div>
+
+            <div class="flex flex-wrap gap-4 items-center glass p-2 rounded-2xl">
+                <div class="flex items-center gap-3 bg-slate-900/50 rounded-xl px-4 py-2 border border-slate-800">
+                    <span class="text-[10px] text-slate-500 uppercase font-black">Symbol</span>
+                    <input id="symbol" type="text" value="RELIANCE" class="bg-transparent border-none focus:ring-0 w-24 font-black text-blue-400 outline-none uppercase text-lg">
+                </div>
+                <div class="flex items-center gap-3 bg-slate-900/50 rounded-xl px-4 py-2 border border-slate-800">
+                    <span class="text-[10px] text-slate-500 uppercase font-black">RSI Bounds</span>
+                    <input id="rsiLow" type="number" value="30" class="bg-transparent w-8 text-center text-emerald-400 font-bold outline-none text-xs">
+                    <span class="text-slate-700">/</span>
+                    <input id="rsiHigh" type="number" value="70" class="bg-transparent w-8 text-center text-rose-400 font-bold outline-none text-xs">
+                </div>
+                <div class="flex items-center gap-3 bg-slate-900/50 rounded-xl px-4 py-2 border border-slate-800">
+                    <span class="text-[10px] text-slate-500 uppercase font-black">Poll (ms)</span>
+                    <input id="pollInterval" type="number" value="2000" class="bg-transparent w-12 text-center text-slate-300 font-bold outline-none text-xs">
+                </div>
+                <div class="flex gap-2">
+                    <button id="btnPoll" onclick="startPolling()" class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl font-bold transition-all text-xs">Start</button>
+                    <button onclick="logout()" class="bg-slate-800 hover:bg-slate-700 text-slate-400 px-4 py-2.5 rounded-xl transition-all text-xs font-bold uppercase">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Notification Banner -->
+        <div id="alert" class="hidden mb-6 p-4 rounded-xl border-l-4 border-rose-500 bg-rose-500/10 text-rose-200 font-bold text-sm"></div>
+
+        <!-- Metrics -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="glass rounded-2xl p-5 border-l-4 border-blue-500">
+                <p class="text-[10px] text-slate-500 font-black uppercase mb-1">RSI Index</p>
+                <p id="metricRsi" class="text-2xl font-black font-mono-custom">--</p>
+            </div>
+            <div class="glass rounded-2xl p-5 border-l-4 border-emerald-500">
+                <p class="text-[10px] text-slate-500 font-black uppercase mb-1">Price Change</p>
+                <p id="metricChange" class="text-2xl font-black font-mono-custom">--</p>
+            </div>
+            <div class="glass rounded-2xl p-5 border-l-4 border-amber-500">
+                <p class="text-[10px] text-slate-500 font-black uppercase mb-1">Validity</p>
+                <p id="metricValid" class="text-2xl font-black font-mono-custom text-slate-400">--</p>
+            </div>
+            <div class="glass rounded-2xl p-5 border-l-4 border-slate-500">
+                <p class="text-[10px] text-slate-500 font-black uppercase mb-1">Total Points</p>
+                <p id="metricCount" class="text-2xl font-black font-mono-custom">--</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div class="lg:col-span-2 glass rounded-3xl p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-bold text-slate-300 uppercase text-xs tracking-widest">Market Price (OHLC)</h3>
+                    <div id="lastFetch" class="text-[10px] font-mono-custom text-slate-500 italic">Offline</div>
+                </div>
+                <div class="h-[350px]">
+                    <canvas id="chart"></canvas>
+                </div>
+            </div>
+
+            <div class="glass rounded-3xl p-8 flex flex-col items-center justify-center">
+                <div class="relative w-48 h-48">
+                    <svg class="w-full h-full transform -rotate-90">
+                        <circle cx="96" cy="96" r="80" stroke="#1e293b" stroke-width="12" fill="transparent" />
+                        <circle id="rsiGauge" cx="96" cy="96" r="80" stroke="#3b82f6" stroke-width="12" fill="transparent" stroke-dasharray="502.6" stroke-dashoffset="502.6" stroke-linecap="round" class="rsi-indicator" />
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span id="rsiValueBig" class="text-5xl font-black font-mono-custom">--</span>
+                        <span id="rsiLabel" class="text-[9px] font-black uppercase tracking-widest text-slate-500 mt-1">Neutral</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Candle Data Table -->
+        <div class="glass rounded-3xl overflow-hidden mb-8">
+            <div class="p-5 border-b border-slate-800 bg-slate-800/40 flex justify-between items-center">
+                <h3 class="font-bold text-xs uppercase tracking-widest text-slate-400">Live Candle History</h3>
+                <span id="tableStatus" class="text-[10px] font-mono-custom text-slate-500">0 records</span>
+            </div>
+            <div class="overflow-x-auto max-h-80">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-slate-900 sticky top-0 z-10">
+                        <tr class="text-slate-500 font-black uppercase tracking-tighter">
+                            <th class="p-4 border-b border-slate-800">Timestamp</th>
+                            <th class="p-4 border-b border-slate-800">Open</th>
+                            <th class="p-4 border-b border-slate-800">High</th>
+                            <th class="p-4 border-b border-slate-800">Low</th>
+                            <th class="p-4 border-b border-slate-800">Close</th>
+                            <th class="p-4 border-b border-slate-800 text-right">Volume</th>
+                        </tr>
+                    </thead>
+                    <tbody id="candleBody" class="font-mono-custom text-slate-400">
+                        <tr><td colspan="6" class="p-10 text-center italic text-slate-600 uppercase text-[10px] tracking-widest">Connect to API to see data stream</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        
+    </div>
+
+    <script>
+        const API_BASE = "http://localhost:8080";
+        let token = localStorage.getItem("token") || "";
+        let pollTimer = null;
+        let chart = null;
+        const candleHistory = []; 
+        const MAX_POINTS = 50; // Limit candles for visual clarity
+
+        function qs(id) { return document.getElementById(id); }
+
+        function setAuthedUI() {
+            qs("login").classList.add("hidden");
+            qs("app").classList.remove("hidden");
+        }
+
+        function setLoggedOutUI() {
+            qs("login").classList.remove("hidden");
+            qs("app").classList.add("hidden");
+            stopPolling();
+        }
+
+        function showError(msg) {
+            const status = qs("status");
+            if (status) status.textContent = msg;
+        }
+
+        async function apiFetch(path, opts = {}) {
+            const headers = Object.assign({}, opts.headers || {});
+            if (!headers["Content-Type"] && opts.body) headers["Content-Type"] = "application/json";
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+
+            const res = await fetch(`${API_BASE}${path}`, { ...opts, headers });
+            const text = await res.text();
+            let data = null;
+            try { data = text ? JSON.parse(text) : null; } catch (_) { data = null; }
+
+            if (!res.ok) {
+                const msg = (data && (data.error || data.message)) || `HTTP ${res.status} ${res.statusText}`;
+                throw new Error(msg);
+            }
+            return data;
+        }
+
+        async function login(username, password) {
+            const data = await apiFetch("/login", {
+                method: "POST",
+                body: JSON.stringify({ username, password })
+            });
+            if (!data || !data.token) throw new Error("No token received");
+            token = data.token;
+            localStorage.setItem("token", token);
+            setAuthedUI();
+        }
+
+        function logout() {
+            token = "";
+            localStorage.removeItem("token");
+            setLoggedOutUI();
+        }
+
+        async function poll() {
+            const symbol = (qs("symbol")?.value || "RELIANCE").trim();
+            const rsiLow = parseFloat(qs("rsiLow")?.value || "30");
+            const rsiHigh = parseFloat(qs("rsiHigh")?.value || "70");
+            
+            const data = await apiFetch(
+                `/market/intraday/${encodeURIComponent(symbol)}?tail=1&rsi_low=${rsiLow}&rsi_high=${rsiHigh}`,
+                { method: "GET" }
+            );
+
+            updateUI(data);
+            updateCandleTable(data);
+            updateChart(data);
+
+            const raw = qs("raw");
+            if (raw) raw.textContent = JSON.stringify(data, null, 2);
+        }
+
+        function updateUI(data) {
+            qs("metricRsi").innerText = Number(data.rsi || 0).toFixed(2);
+            qs("metricChange").innerText = `${Number(data.change_pct || 0).toFixed(2)}%`;
+            qs("metricChange").className = `text-2xl font-black font-mono-custom ${data.change_pct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+            qs("metricValid").innerText = data.is_valid_rsi ? "YES" : "NO";
+            qs("metricValid").className = `text-2xl font-black font-mono-custom ${data.is_valid_rsi ? 'text-emerald-400' : 'text-amber-500'}`;
+            qs("metricCount").innerText = data.rsi_count || 0;
+            qs("lastFetch").innerText = `Last Sync: ${data.last_fetch ? new Date(data.last_fetch).toLocaleTimeString() : "-"}`;
+
+            const rsiVal = Number(data.rsi || 0);
+            const gauge = qs("rsiGauge");
+            const circumference = 502.6;
+            gauge.style.strokeDashoffset = circumference - (rsiVal / 100) * circumference;
+            
+            const lowT = parseFloat(qs("rsiLow").value);
+            const highT = parseFloat(qs("rsiHigh").value);
+            qs("rsiValueBig").innerText = Math.round(rsiVal);
+
+            if (rsiVal >= highT) {
+                gauge.style.stroke = "#fc7386";
+                qs("rsiValueBig").style.color = "#fc7386";
+                qs("rsiLabel").innerText = "Overbought";
+            } else if (rsiVal <= lowT) {
+                gauge.style.stroke = "#258870";
+                qs("rsiValueBig").style.color = "#258870";
+                qs("rsiLabel").innerText = "Oversold";
+            } else {
+                gauge.style.stroke = "#3b82f6";
+                qs("rsiValueBig").style.color = "#f8fafc";
+                qs("rsiLabel").innerText = "Neutral";
+            }
+
+            const alertEl = qs("alert");
+            if (data.alert) {
+                alertEl.textContent = `${data.symbol}: ${data.alert} @ RSI ${rsiVal.toFixed(1)}`;
+                alertEl.classList.remove("hidden");
+            } else {
+                alertEl.classList.add("hidden");
+            }
+        }
+
+        function updateCandleTable(data) {
+            if (!data.candles || data.candles.length === 0) return;
+            
+            data.candles.forEach(newCandle => {
+                if (!candleHistory.find(c => c.ts === newCandle.ts)) {
+                    candleHistory.push(newCandle); 
+                    if (candleHistory.length > 100) candleHistory.shift(); 
+                }
+            });
+
+            const body = qs("candleBody");
+            // Reverse for display: newest at top
+            const displayData = [...candleHistory].reverse();
+            body.innerHTML = displayData.map(c => `
+                <tr class="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                    <td class="p-4 text-slate-500">${new Date(c.ts).toLocaleTimeString()}</td>
+                    <td class="p-4 text-slate-300">${c.o.toFixed(2)}</td>
+                    <td class="p-4 text-emerald-400 font-bold">${c.h.toFixed(2)}</td>
+                    <td class="p-4 text-rose-400 font-bold">${c.l.toFixed(2)}</td>
+                    <td class="p-4 text-slate-100">${c.c.toFixed(2)}</td>
+                    <td class="p-4 text-right text-slate-500">${c.v.toLocaleString()}</td>
+                </tr>
+            `).join('');
+            
+            qs("tableStatus").innerText = `${candleHistory.length} records cached`;
+        }
+
+        function ensureChart() {
+            if (chart) return chart;
+            const ctx = qs("chart").getContext("2d");
+            chart = new Chart(ctx, {
+                type: 'candlestick',
+                data: {
+                    datasets: [{
+                        label: 'Market Price',
+                        data: [],
+                        color: {
+                            up: '#258870',
+                            down: '#fc7386',
+                            unchanged: '#121212',
+                        }
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: { unit: 'minute' },
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#64748b', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            ticks: { color: '#64748b', font: { size: 10 } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+            return chart;
+        }
+
+        function updateChart(data) {
+            const c = ensureChart();
+            
+            // Map our candleHistory to Chart.js financial format {t, o, h, l, c}
+            const chartData = candleHistory.map(candle => ({
+                x: luxon.DateTime.fromISO(candle.ts).valueOf(),
+                o: candle.o,
+                h: candle.h,
+                l: candle.l,
+                c: candle.c
+            }));
+
+            c.data.datasets[0].data = chartData;
+            c.update('none');
+        }
+
+        function startPolling() {
+            const interval = parseInt(qs("pollInterval")?.value || "2000", 10);
+            const btn = qs("btnPoll");
+            if (pollTimer) {
+                stopPolling();
+                btn.innerText = "Start";
+                btn.className = "bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl font-bold transition-all text-xs";
+                return;
+            }
+            
+            btn.innerText = "Stop";
+            btn.className = "bg-rose-600 hover:bg-rose-500 text-white px-6 py-2.5 rounded-xl font-bold transition-all text-xs";
+            
+            poll().catch(e => showError(`Poll error: ${e.message}`));
+            pollTimer = setInterval(() => {
+                poll().catch(e => showError(`Poll error: ${e.message}`));
+            }, interval);
+        }
+
+        function stopPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = null;
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            if (token) {
+                setAuthedUI();
+                ensureChart();
+                startPolling();
+            } else {
+                setLoggedOutUI();
+            }
+
+            qs("login-form").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                try {
+                    const u = qs("username").value;
+                    const p = qs("password").value;
+                    await login(u, p);
+                    startPolling();
+                } catch (err) {
+                    showError(`Login failed: ${err.message}`);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/marketpulse
+main
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
+
+# IDEs and Editors
+.idea/
+.vscode/
+__pycache__/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Docker
+Dockerfile.*
+docker-compose.override.yml
+
+# Temporary files
+tmp/
+temp/
+
+# Build artifacts
+dist/
+build/
+
+# Coverage directory used by tools like gocovhtml
+coverprofile/
+coverage/
+
+# Dependencies pulled in by `go mod vendor`
+vendor/
+
+# MacOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Redis dumps (if local dev)
+dump.rdb
+dump.json
+
+# Static assets (if generated)
+web/static/build/
+web/static/dist/
+
+# Editor directories and files
+.vscode/settings.json
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Module cache
+$HOME/go/pkg/mod  # MacOS
+%USERPROFILE%/go/pkg/mod  # Windows
